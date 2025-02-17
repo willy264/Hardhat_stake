@@ -1,9 +1,15 @@
-// SPDX License Identifier: UNLICENSED
+// SPDX-License-Identifier: UNLICENSED
 pragma solidity 0.8.28;
 
 import "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 
 contract Stake {
+
+  struct StakeStruct {
+    uint256 amount;
+    uint256 startTime;
+    uint256 rewardAccumulated;
+  }
 
   // state variables
     address public owner;
@@ -11,13 +17,9 @@ contract Stake {
     uint256 public totalStaked;
     uint256 public stakeRewards; // rewards per stake(token)
     uint256 public stakeDuration;  // minimum stake duration 
-    mapping(address => uint256) public staker;
+    mapping(address => StakeStruct) public stakers;
 
-    struct Stake {
-      uint256 amount;
-      uint256 startTime;
-      uint256 rewardAccumulated;
-    }
+
 
     event Staked(address indexed user, uint256 amount);
     event RewardClaimed(address indexed user, uint256 amount);
@@ -38,9 +40,9 @@ contract Stake {
     function stake(uint256 _amount) external {
       if (_amount == 0) revert ZeroAmount();
 
-      token.transferFrom(msg.sender, address(this), _amount);
+      token.transferFrom(msg.sender, address(this),  _amount);
   
-      Stake storage user = stakers[msg.sender]; 
+      StakeStruct storage user = stakers[msg.sender]; 
       user.amount += _amount;
 
       if (user.startTime == 0){  // checking if the user is staking for the first time
@@ -48,13 +50,13 @@ contract Stake {
       }
       totalStaked += _amount;
 
-      emit Staked(msg.sender, _amount)
+      emit Staked(msg.sender, _amount);
     }
 
     function withdrawStake(uint256 _amount) external {
-      Stake storage user = staker[msg.sender];
+      StakeStruct storage user = stakers[msg.sender];
       if (_amount == 0) revert ZeroAmount();
-      if (_amount > totalStaked) revert InsufficientStake;
+      if (_amount > totalStaked) revert InsufficientStake();
       if (block.timestamp < stakeDuration) revert MinimumStakePeriodNotReached();
 
       token.transfer(msg.sender, _amount);
@@ -63,11 +65,11 @@ contract Stake {
     }
     
     function claimRewards() external {
-      Stake storage user = stakers[msg.sender];
+      StakeStruct storage user = stakers[msg.sender];
       uint256 rewards = calculateRewards(msg.sender) + user.rewardAccumulated;
       if (rewards == 0) revert NoRewardsToClaim();
 
-      stakingToken.transfer(msg.sender, rewards);
+      token.transfer(msg.sender, rewards);
       user.rewardAccumulated = 0;
       user.startTime = block.timestamp; 
 
@@ -75,7 +77,7 @@ contract Stake {
     }
 
     function calculateRewards(address _staker) public view returns (uint256) {
-      Stake storage user = stakers[_staker];
+      StakeStruct storage user = stakers[_staker];
       uint256 timeStaked = block.timestamp - user.startTime;
       return (user.amount * stakeDuration * timeStaked) / 1e18;
     }
